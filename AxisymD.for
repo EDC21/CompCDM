@@ -229,16 +229,17 @@ C			  stressNew(i,4)= C44*stateNew(i,4)
 		  
 			  sgn4 = stateNew(i,4)/(abs(stateNew(i,4)+safety))
 			  
-			  stateNew(i,5)=abs(stateNew(i,4))
-			  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))
-		   
-			  ! IF(abs(stateNew(i,4)).gt.stateOld(i,5))THEN
-				! stateNew(i,5)=abs(stateNew(i,4))
-				! stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))  
-			  ! ELSE
-				! stateNew(i,5)=stateOld(i,5)
-				! stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))) 
-     ! 				-G12*(stateNew(i,5)-abs(stateNew(i,4))))	 
+			  IF(abs(stateNew(i,4)).gt.abs(stateOld(i,5)))THEN
+			  
+				  stateNew(i,5)=abs(stateNew(i,4))
+				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))	
+				
+			  ELSE
+			  
+				  stateNew(i,5)=abs(stateOld(i,5))
+				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5)))  
+     *				- A*(one - exp(stateNew(i,5)-abs(stateNew(i,4)))))
+				
 			  ENDIF
 		  ENDDO
 	  ENDIF

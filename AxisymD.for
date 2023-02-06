@@ -207,6 +207,10 @@ C
 	  ELSE
 
 		  DO i = 1, nblock
+		  
+			  DO j = 1, nblock
+			      stateNew(i,j) = stateOld(i,j)
+			  ENDDO		  
 
 			  stateNew(i,1)= stateOld(i,1)+ strainInc(i,1)
 			  stateNew(i,2)= stateOld(i,2)+ strainInc(i,2)
@@ -224,6 +228,9 @@ C
 C			  stressNew(i,4)= C44*stateNew(i,4)
 		  
 			  sgn4 = stateNew(i,4)/(abs(stateNew(i,4)+safety))
+			  
+			  stateNew(i,5)=abs(stateNew(i,4))
+			  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))
 		   
 			  ! IF(abs(stateNew(i,4)).gt.stateOld(i,5))THEN
 				! stateNew(i,5)=abs(stateNew(i,4))
@@ -231,7 +238,7 @@ C			  stressNew(i,4)= C44*stateNew(i,4)
 			  ! ELSE
 				! stateNew(i,5)=stateOld(i,5)
 				! stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))) 
-     ! *				-G12*(stateNew(i,5)-abs(stateNew(i,4))))	 
+     ! 				-G12*(stateNew(i,5)-abs(stateNew(i,4))))	 
 			  ENDIF
 		  ENDDO
 	  ENDIF

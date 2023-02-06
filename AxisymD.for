@@ -230,15 +230,16 @@ C			  stressNew(i,4)= C44*stateNew(i,4)
 			  sgn4 = stateNew(i,4)/(abs(stateNew(i,4)+safety))
 			  
 			  IF(abs(stateNew(i,4)).gt.abs(stateOld(i,5)))THEN
-			  
-				  stateNew(i,5)=abs(stateNew(i,4))
-				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))	
+				
+				  stateNew(i,5)=abs(stateNew(i,4)) ! SDV5: experienced max shear strain
+				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))
+				  s12_max = stressNew(i,4)
 				
 			  ELSE
 			  
 				  stateNew(i,5)=abs(stateOld(i,5))
-				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5)))  
-     *				- A*(one - exp(stateNew(i,5)-abs(stateNew(i,4)))))
+				  stressNew(i,4)=sgn4*(s12_max
+     *				- A*(one -exp(-B*(abs(stateNew(i,5)-abs(stateNew(i,4)))))))
 				
 			  ENDIF
 		  ENDDO

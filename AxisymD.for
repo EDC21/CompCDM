@@ -275,7 +275,8 @@ C ==================================
 				  gamma12 = stateNew(i,4)
 				  
 				  d12 = ((gamma12_ff - gamma12_inel_f0)/(gamma12_ff - gamma12_f0))
-     *             (one - (gamma12_f0 - gamma12_inel_f0)/(gamma12 - gamma12_inel_f0))
+     *             *(one - (gamma12_f0 - gamma12_inel_f0)
+     *			   /(gamma12 - gamma12_inel_f0))
 	
 				  Ds = min(one, max(zero, d12))
 				  Ds = max(stateNew(i,11),d12)

@@ -76,16 +76,13 @@
 ! SDV3  - strain 33
 ! SDV4  - strain 12, engineering shear strain gamma
 ! SDV5  - Temporary strain 12
-! SDV6  - The determinant of deformation gradient, det(F)
-! SDV7  - Failure index under tension, FIt
-! SDV8  - Failure index under compression, FIc
-! SDV9  - Damage variable, D
-! SDV10 - Element Delete flag; 0-delete
-! SDV11 - Stress 11 at fibre damage initiation, sig_f0     
-! SDV12 - Strain 11 at fibre damage initiation, eps_f0
-! SDV13 - Strain 11 at fibre damage completion, eps_ff
-! SDV14 - Characteristic length, L
-! SDV15 - Fibre failure falg: 0-elastic, 1-softening
+! SDV6  - Shear softening flag: 0- elastic, 1- softening
+! SDV7  - Shear failure indice
+! SDV8  - Shear strain at shear damage initiation
+! SDV9  - Inelastic shear strain at shear damage initiation
+! SDV10 - Shear strain at final shear failure
+! SDV11 - Shear damage variable, Ds
+
 
 C..........fibre_damage starts here..............
 
@@ -126,12 +123,14 @@ C
        integer intnum,locnum,jrcd,lenoutdir
        double precision E11,E22,E33,v12,v21,v13,v31,v23,v32,G12,G13,G23
        double precision C11 ,C12 ,C13 ,C14 ,C21 ,C22,
-     *   C23 , C24,C31 ,C32 ,C33 ,C34,
+     *   C23 , C24, C31 ,C32 ,C33 ,C34,
      *   C41 , C42 ,C43 ,C44
 	   double precision n,m,delta
 	   double precision Xt,Xc,Yc,Yt,Sl
 	   double precision Gft,Gfc
-       double precision sgn4,Ga,Gb,A1,A2,EPS,A,B
+       double precision sgn4,A,B,TAU12,FIs,FIs_old,FIs_max,d12
+	   double precision gamma12_f0,gamma12_inel_f0,gamma12_ff, Ds
+	   
 	   
 	   integer i,j
 
@@ -207,11 +206,13 @@ C
 	  ELSE
 
 		  DO i = 1, nblock
-		  
-			  DO j = 1, nblock
-			      stateNew(i,j) = stateOld(i,j)
-			  ENDDO		  
+			  
+			  ! DO j = 1, nblock
+			      ! stateNew(i,j) = stateOld(i,j)
+			  ! ENDDO
 
+			  ! WRITE(*,*) '----------- stepTime:', stepTime, '----------------'
+			  
 			  stateNew(i,1)= stateOld(i,1)+ strainInc(i,1)
 			  stateNew(i,2)= stateOld(i,2)+ strainInc(i,2)
 			  stateNew(i,3)= stateOld(i,3)+ strainInc(i,3)
@@ -224,24 +225,81 @@ C
      *                 + C23*stateNew(i,3)
 
 			  stressNew(i,3)= C31*stateNew(i,1)+C32*stateNew(i,2)
-     *                 + C33*stateNew(i,3) 
-C			  stressNew(i,4)= C44*stateNew(i,4)
-		  
+     *                 + C33*stateNew(i,3) 		
+			  
 			  sgn4 = stateNew(i,4)/(abs(stateNew(i,4)+safety))
-			  
-			  IF(abs(stateNew(i,4)).gt.abs(stateOld(i,5)))THEN
-				
-				  stateNew(i,5)=abs(stateNew(i,4)) ! SDV5: experienced max shear strain
-				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))
-				  s12_max = stressNew(i,4)
-				
+
+			  IF(abs(stateNew(i,4)).gt.stateOld(i,5))THEN
+				stateNew(i,5)=abs(stateNew(i,4))
+				stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))  
 			  ELSE
-			  
-				  stateNew(i,5)=abs(stateOld(i,5))
-				  stressNew(i,4)=sgn4*(s12_max
-     *				- A*(one -exp(-B*(abs(stateNew(i,5)-abs(stateNew(i,4)))))))
+				stateNew(i,5)=stateOld(i,5)
+				stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))) 
+     *     				-G12*(stateNew(i,5)-abs(stateNew(i,4))))
 				
 			  ENDIF
+			  
+			  TAU12 = stressNew(i,4)
+C Calculate response from elastic region to failure initiation point
+C ==================================
+			  IF (stateNew(i,6) .eq. zero) THEN !SDV6: shear softening flag
+				  FIs = abs(TAU12)/S12
+				  FIs_old = stateOld(i,7)
+					
+				  FIs_max = max(FIs,FIs_old)
+				  stateNew(i,7) = FIs_max 
+				  
+				  d12 = zero
+				  
+				  IF (FIs .GT. one) THEN
+				  
+					  stateNew(i,6) = one
+					  
+					! Recod the gamma12 at shear damage initiation
+					  gamma12_f0 = stateNew(i,4)
+					  stateNew(i,8) = gamma12_f0
+					
+					! Calculate the inelastic strain at shear damage initiation
+					  gamma12_inel_f0 = gamma12_f0 - S12/G12
+					  stateNew(i,9) = gamma12_inel_f0
+					
+					! Calculate the gamma12 at final shear failure
+					  gamma12_ff = 2.d0*Gs/(S12*charLength(i))
+					  stateNew(i,10) = gamma12_ff
+					  
+				  ENDIF
+			  ELSEIF (stateNew(i,6) .eq. one) THEN
+				  gamma12_f0 = stateNew(i,8)
+				  gamma12_inel_f0 = stateNew(i,9)
+				  gamma12_ff = stateNew(i,10)
+				  gamma12 = stateNew(i,4)
+				  
+				  d12 = ((gamma12_ff - gamma12_inel_f0)/(gamma12_ff - gamma12_f0))
+     *             (one - (gamma12_f0 - gamma12_inel_f0)/(gamma12 - gamma12_inel_f0))
+	
+				  Ds = min(one, max(zero, d12))
+				  Ds = max(stateNew(i,11),d12)
+				  stateNew(i,11) = Ds
+				  
+				  TAU12 = TAU12*(1-Ds)*(gamma12 - gamma12_inel_f0)
+			  ENDIF
+			     
+				  
+				
+		   
+			  ! IF(abs(stateNew(i,4)).gt.abs(stateOld(i,5)))THEN
+				
+				  ! stateNew(i,5)=abs(stateNew(i,4)) ! SDV5: experienced max shear strain
+				  ! stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))
+				  ! s12_max = stressNew(i,4)
+				
+			  ! ELSE
+			  
+				  ! stateNew(i,5)=abs(stateOld(i,5))
+				  ! stressNew(i,4)=sgn4*(s12_max
+ 				! - A*(one -exp(-B*(abs(stateNew(i,5)-abs(stateNew(i,4)))))))
+				
+			  ! ENDIF
 		  ENDDO
 	  ENDIF
 

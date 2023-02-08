@@ -82,6 +82,7 @@
 ! SDV9  - Inelastic shear strain at shear damage initiation
 ! SDV10 - Shear strain at final shear failure
 ! SDV11 - Shear damage variable, Ds
+! SDV12 - Element characteristic length
 
 
 C..........fibre_damage starts here..............
@@ -200,6 +201,10 @@ C
             stressNew(i,3)= stressOld(i,3) + C31*strainInc(i,1)
      *				+ C32*strainInc(i,2) + C33*strainInc(i,3)
             stressNew(i,4) = stressOld(i,4) + two*C44*strainInc(i,4)
+			
+			Ds = stateNew(i,11)
+			stateNew(i,6) = zero
+			stateNew(i,12) = charLength(i)
 				  
 		  ENDDO
 

@@ -1,4 +1,4 @@
-      subroutine vumat(
+subroutine vumat(
      *     jblock, ndir, nshr, nstatev, nfieldv, nprops, lanneal,
      *     stepTime, totalTime, dt, cmname, coordMp, charLength,
      *     props, density, strainInc, relSpinInc,
@@ -6,9 +6,9 @@
      *     stressOld, stateOld, enerInternOld, enerInelasOld,
      *     tempNew, stretchNew, defgradNew, fieldNew,
      *     stressNew, stateNew, enerInternNew, enerInelasNew )  
-      
+
       include 'vaba_param.inc'
-      
+
       dimension jblock(*), props(nprops),density(*), coordMp(*),
      1     charLength(*), strainInc(*),
      2     relSpinInc(*), tempOld(*),
@@ -24,16 +24,16 @@
      3     enerInternNew(*), enerInelasNew(*)
 
       character*80 cmname
-       
+
       integer readflag
       real*4  edgedim(350000,3)
       common /integerbuf/readflag 
       common / realbuf/edgedim
 
-        
+
         if(cmname(1:6).eq.'MATCOH')then
-        
-          
+
+
           call vumatcoh(jblock(1),
      *     ndir, nshr, nstatev, nfieldv, nprops, lanneal,
      *     stepTime, totalTime, dt, cmname, coordMp, charLength,
@@ -44,7 +44,7 @@
      *     stressNew, stateNew, enerInternNew, enerInelasNew,
      *     jblock(5), jblock(2),
      *     jblock(3), jblock(4))
-           
+
         elseif(cmname(1:8).eq.'MATFIBRE')then
 
            call  vumatfibre( jblock(1),
@@ -57,10 +57,10 @@
      *     stressNew, stateNew, enerInternNew, enerInelasNew,
      *     jblock(5), jblock(2),
      *     jblock(3), jblock(4))
-     
+
             endif
- 
-        
+
+
       return
       end       
 
@@ -75,14 +75,11 @@
 ! SDV2  - strain 22
 ! SDV3  - strain 33
 ! SDV4  - strain 12, engineering shear strain gamma
-! SDV5  - Temporary strain 12
-! SDV6  - Shear softening flag: 0- elastic, 1- softening
-! SDV7  - Shear failure indice
-! SDV8  - Shear strain at shear damage initiation
-! SDV9  - Inelastic shear strain at shear damage initiation
-! SDV10 - Shear strain at final shear failure
-! SDV11 - Shear damage variable, Ds
-! SDV12 - Element characteristic length
+! SDV5  - Max experienced strain 12
+! SDV6  - Max experienced stress 12
+! SDV7  - Strain for isotropic hardening
+! SDV8  - Flag for unloading and isotropic hardening: 0-unloading, 1-hardening
+
 
 
 C..........fibre_damage starts here..............
@@ -96,9 +93,9 @@ C..........fibre_damage starts here..............
      *     tempNew, stretchNew, defgradNew, fieldNew,
      *     stressNew, stateNew, enerInternNew, enerInelasNew,
      *     nElement, nMatPoint, nLayer, nSecPoint )
-     
+
       include 'vaba_param.inc'
-      
+
 C
       dimension coordMp(nblock,*), charLength(nblock), props(nprops),
      1     density(nblock), strainInc(nblock,ndir+nshr),
@@ -118,21 +115,19 @@ C
        parameter(zero = 0.d0, one = 1.d0, two = 2.d0, three = 3.d0, 
      * third = one/three, half = 0.5d0, twothird = two/three,
      * threehalf = 1.5d0, safety = 1.d-20, tolSgn = 1.d-20, S_res=50.d0)              
-      
+
        character*80 cmname,cpname
        character*256 outdir,fullpath
        integer intnum,locnum,jrcd,lenoutdir
        double precision E11,E22,E33,v12,v21,v13,v31,v23,v32,G12,G13,G23
        double precision C11 ,C12 ,C13 ,C14 ,C21 ,C22,
-     *   C23 , C24, C31 ,C32 ,C33 ,C34,
+     *   C23 , C24,C31 ,C32 ,C33 ,C34,
      *   C41 , C42 ,C43 ,C44
 	   double precision n,m,delta
 	   double precision Xt,Xc,Yc,Yt,Sl
 	   double precision Gft,Gfc
-       double precision sgn4,A,B,TAU12,FIs,FIs_old,FIs_max,d12
-	   double precision gamma12_f0,gamma12_inel_f0,gamma12_ff, Ds
-	   
-	   
+       double precision sgn4,Ga,Gb,A1,A2,EPS,A,B
+
 	   integer i,j
 
 
@@ -148,17 +143,17 @@ C
       G23 = props(9) 
 
 	! Parameters for nonlinear shear constitutive law
-	
+
       A   = props(10) !145 (paper)
       B   = props(11) !38
-	 
+
 	! Ply strengths	
 	  Xt  = props(12)  ! 1089.2/1906
 	  Xc  = props(13)  ! 675.6/1182
       Yt  = props(14)  ! 11.1/44.4
       Yc  = props(15)  ! 25/100
       Sl  = props(16)  ! 45.2
-	  
+
       Gft = props(17)  ! Fracture energy in lonitudinal tension = 92 kJ/m2
 	  Gfc = props(18)  ! Fracture energy in lonitudinal compression = 80
 
@@ -188,7 +183,7 @@ C
 	  C42 = zero
 	  C43 = zero
 	  C44 = G12
-      
+
 
 	  IF (stepTime .eq. zero) THEN
 
@@ -201,23 +196,13 @@ C
             stressNew(i,3)= stressOld(i,3) + C31*strainInc(i,1)
      *				+ C32*strainInc(i,2) + C33*strainInc(i,3)
             stressNew(i,4) = stressOld(i,4) + two*C44*strainInc(i,4)
-			
-			Ds = stateNew(i,11)
-			stateNew(i,6) = zero
-			stateNew(i,12) = charLength(i)
-				  
+
 		  ENDDO
 
 	  ELSE
 
 		  DO i = 1, nblock
-			  
-			  ! DO j = 1, nblock
-			      ! stateNew(i,j) = stateOld(i,j)
-			  ! ENDDO
 
-			  ! WRITE(*,*) '----------- stepTime:', stepTime, '----------------'
-			  
 			  stateNew(i,1)= stateOld(i,1)+ strainInc(i,1)
 			  stateNew(i,2)= stateOld(i,2)+ strainInc(i,2)
 			  stateNew(i,3)= stateOld(i,3)+ strainInc(i,3)
@@ -230,88 +215,45 @@ C
      *                 + C23*stateNew(i,3)
 
 			  stressNew(i,3)= C31*stateNew(i,1)+C32*stateNew(i,2)
-     *                 + C33*stateNew(i,3) 		
-			  
+     *                 + C33*stateNew(i,3) 
+C			  stressNew(i,4)= C44*stateNew(i,4)
+
 			  sgn4 = stateNew(i,4)/(abs(stateNew(i,4)+safety))
 
 			  IF(abs(stateNew(i,4)).gt.stateOld(i,5))THEN
-				stateNew(i,5)=abs(stateNew(i,4))
-				stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))  
+				  ! Loading
+				  stateNew(i,5)=abs(stateNew(i,4))
+				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))
+				  stateNew(i,6) = stressNew(i,4) ! Record tau12_0 at max gamma12_0
 			  ELSE
-				stateNew(i,5)=stateOld(i,5)
-				stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))) 
-     *     				-G12*(stateNew(i,5)-abs(stateNew(i,4))))
-				
-			  ENDIF
-			  
-			  TAU12 = stressNew(i,4)
-C Calculate response from elastic region to failure initiation point
-C ==================================
-			  IF (stateNew(i,6) .eq. zero) THEN !SDV6: shear softening flag
-				  FIs = abs(TAU12)/S12
-				  FIs_old = stateOld(i,7)
-					
-				  FIs_max = max(FIs,FIs_old)
-				  stateNew(i,7) = FIs_max 
-				  
-				  d12 = zero
-				  
-				  IF (FIs .GT. one) THEN
-				  
-					  stateNew(i,6) = one
-					  
-					! Recod the gamma12 at shear damage initiation
-					  gamma12_f0 = stateNew(i,4)
-					  stateNew(i,8) = gamma12_f0
-					
-					! Calculate the inelastic strain at shear damage initiation
-					  gamma12_inel_f0 = gamma12_f0 - S12/G12
-					  stateNew(i,9) = gamma12_inel_f0
-					
-					! Calculate the gamma12 at final shear failure
-					  gamma12_ff = 2.d0*Gs/(S12*charLength(i))
-					  stateNew(i,10) = gamma12_ff
-					  
+			      ! Unloading
+				  stateNew(i,5)=stateOld(i,5)
+				  stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))) 
+     *				-G12*(stateNew(i,5)-abs(stateNew(i,4))))
+	 
+				  IF (stateNew(i,8) .EQ. zero) THEN ! Flag for unloading or hardening
+					  IF (abs(stressNew(i,4)) .GE. abs(stateNew(i,6))) THEN
+						  
+						  stateNew(i,8) = one 
+						  ! Record the reversed strain where tau12 reaches tau12_0
+						  stateNew(i,7) = stateNew(i,4) 
+					  ENDIF
+				  ! Hardening	  
+				  ELSEIF (stateNew(i,8) .EQ. one) THEN ! Enter hardening region
+					  stressNew(i,4) = sgn4*(A*(one -exp(-B*abs(abs(stateNew(i,4))
+     *			      - abs(stateNew(i,7)))) + stateNew(i,6)
+					  ! Ensure tau12 not exceed shear strength	
+					  IF (abs(stressNew(i,4)) .GE. 1.d0*A) THEN
+						  stressNew(i,4) = sgn4*A
+					  ENDIF
 				  ENDIF
-			  ELSEIF (stateNew(i,6) .eq. one) THEN
-				  gamma12_f0 = stateNew(i,8)
-				  gamma12_inel_f0 = stateNew(i,9)
-				  gamma12_ff = stateNew(i,10)
-				  gamma12 = stateNew(i,4)
-				  
-				  d12 = ((gamma12_ff - gamma12_inel_f0)/(gamma12_ff - gamma12_f0))
-     *             *(one - (gamma12_f0 - gamma12_inel_f0)
-     *			   /(gamma12 - gamma12_inel_f0))
-	
-				  Ds = min(one, max(zero, d12))
-				  Ds = max(stateNew(i,11),d12)
-				  stateNew(i,11) = Ds
-				  
-				  TAU12 = TAU12*(1-Ds)*(gamma12 - gamma12_inel_f0)
 			  ENDIF
-			     
-				  
-				
-		   
-			  ! IF(abs(stateNew(i,4)).gt.abs(stateOld(i,5)))THEN
-				
-				  ! stateNew(i,5)=abs(stateNew(i,4)) ! SDV5: experienced max shear strain
-				  ! stressNew(i,4)=sgn4*(A*(one -exp(-B*stateNew(i,5))))
-				  ! s12_max = stressNew(i,4)
-				
-			  ! ELSE
-			  
-				  ! stateNew(i,5)=abs(stateOld(i,5))
-				  ! stressNew(i,4)=sgn4*(s12_max
- 				! - A*(one -exp(-B*(abs(stateNew(i,5)-abs(stateNew(i,4)))))))
-				
-			  ! ENDIF
 		  ENDDO
 	  ENDIF
 
       RETURN
       END
-	  
+
 !-------------------------------------------------------------------!
 !      Subroutine vumatcoh:                                         !
 !-------------------------------------------------------------------!       
@@ -357,7 +299,7 @@ C ==================================
 
       end subroutine vumatcoh
 
-      
+
       !> Vexternaldb entry from Abaqus
       subroutine vexternaldb(lOp, i_Array, niArray, r_Array, nrArray)
 
@@ -373,4 +315,3 @@ C ==================================
         endif
 
       end subroutine vexternaldb	
-            

@@ -228,7 +228,7 @@ C
 			  sgn4 = Sign(one, stateNew(i,4))
 				
 				  
-			  IF(abs(stateNew(i,4)).GT.stateOld(i,5))THEN
+			  IF(abs(stateNew(i,4)).GT.abs(stateOld(i,5)))THEN
 				  ! Loading
 				  stateNew(i,8) = zero
 				  stateNew(i,5) = stateNew(i,4)
@@ -243,14 +243,15 @@ C
 			  ELSE
 				  ! Unloading
 				  stateNew(i,5)=stateOld(i,5)
-				  stressNew(i,4)=sgn_gamma12_max*(A*(one -exp(-B*abs(stateNew(i,5)))) 
-     *				-G12*(abs(stateNew(i,5)-stateNew(i,4))))
+					  stressNew(i,4)=sgn_gamma12_max*(A*(one
+     *			        -exp(-B*abs(stateNew(i,5)))) 
+     *					-G12*(abs(stateNew(i,5)-stateNew(i,4))))
 	 
 				  IF (stateNew(i,8) .EQ. zero) THEN ! Flag for unloading or hardening
 
-					  ! sgn_tau12 = stressNew(i,4)/(abs(stressNew(i,4)+safety))
 					  sgn_tau12 = Sign(one, stressNew(i,4))
-					  diff = (abs(stressNew(i,4)) - abs(stateNew(i,6)))/abs(stateNew(i,6)) 
+					  diff = (abs(stressNew(i,4)) - abs(stateNew(i,6)))
+     *					     /abs(stateNew(i,6))
 					  WRITE(*,*) 'stateNew(i,8)=', stateNew(i,8)
 					  WRITE(*,*) 'sgn_tau12=', sgn_tau12
 					  WRITE(*,*) 'stateNew(i,6)=', stateNew(i,6)
@@ -260,8 +261,9 @@ C
 					  
 					  ! If the stress in the unloading stage is opposite to tau12_0 and
 					  ! abs(tau12) is larger than tau12_0
-					  IF ( sgn_tau12 .NE. sgn_tau12_0 .AND. (abs(diff) .LE. tolStress)) THEN
-						  
+					  IF ( sgn_tau12 .NE. sgn_tau12_0 .AND. 
+     *   			     (abs(diff) .LE. tolStress)) THEN	
+	 
 						  stateNew(i,8) = one 
 						  ! Record the reversed strain where tau12 reaches tau12_0
 						  stateNew(i,7) = stateNew(i,4)
@@ -272,8 +274,8 @@ C
 				  ! Hardening	  
 				  ELSEIF (stateNew(i,8) .EQ. one) THEN ! Enter hardening region
 				  
-					  stressNew(i,4) = sgn_tau12*(A*(one -exp(-B*abs(stateNew(i,4)
-     *			      	- stateNew(i,7))))) + sgn_tau12*stateNew(i,6)
+				  stressNew(i,4) = sgn_tau12*(A*(one -exp(-B*abs(stateNew(i,4)
+     *		      	- stateNew(i,7))))) + sgn_tau12*abs(stateNew(i,6))
 					  
 					  WRITE(*,*) 'stateNew(i,8)=', stateNew(i,8)
 					  WRITE(*,*) 'stressNew(i,4)=',	stressNew(i,4)

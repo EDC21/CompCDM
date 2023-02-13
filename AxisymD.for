@@ -197,6 +197,8 @@ C
             stressNew(i,3)= stressOld(i,3) + C31*strainInc(i,1)
      *				+ C32*strainInc(i,2) + C33*strainInc(i,3)
             stressNew(i,4) = stressOld(i,4) + two*C44*strainInc(i,4)
+			
+			stateNew(i,8) = zero
 
 		  ENDDO
 
@@ -227,31 +229,32 @@ C
 
 			  sgn4 = Sign(one, stateNew(i,4))
 				
-				  
-			  IF(abs(stateNew(i,4)).GT.abs(stateOld(i,5)))THEN
-				  ! Loading
-				  stateNew(i,8) = zero
-				  stateNew(i,5) = stateNew(i,4)
-				  stressNew(i,4) = sgn4*(A*(one -exp(-B*abs(stateNew(i,5)))))
+			  IF (stateNew(i,8) .EQ. zero) THEN
+			  
+				  IF (abs(stateNew(i,4)).GT.abs(stateOld(i,5))) THEN
+					  ! Loading
+					  stateNew(i,8) = zero
+					  stateNew(i,5) = stateNew(i,4)
+					  stressNew(i,4) = sgn4*(A*(one -exp(-B*abs(stateNew(i,5)))))
 
-				  stateNew(i,6) = stressNew(i,4) ! Record tau12_0 at max gamma12_0
-				  sgn_tau12_0 = Sign(one, stateNew(i,6))
-				  sgn_gamma12_max = Sign(one, stateNew(i,5))
-				  
-				  WRITE(*,*) 'stateNew(i,6)=', stateNew(i,6)
-				  WRITE(*,*) 'sgn_tau12_0=', sgn_tau12_0
-			  ELSE
-				  ! Unloading
-				  stateNew(i,5)=stateOld(i,5)
+					  stateNew(i,6) = stressNew(i,4) ! Record tau12_0 at max gamma12_0
+					  sgn_tau12_0 = Sign(one, stateNew(i,6))
+					  sgn_gamma12_max = Sign(one, stateNew(i,5))
+					  
+					  WRITE(*,*) 'stateNew(i,6)=', stateNew(i,6)
+					  WRITE(*,*) 'sgn_tau12_0=', sgn_tau12_0
+				  ELSE
+					  ! Unloading
+					  stateNew(i,5)=stateOld(i,5)
 					  stressNew(i,4)=sgn_gamma12_max*(A*(one
      *			        -exp(-B*abs(stateNew(i,5)))) 
      *					-G12*(abs(stateNew(i,5)-stateNew(i,4))))
 	 
-				  IF (stateNew(i,8) .EQ. zero) THEN ! Flag for unloading or hardening
+				  ! IF (stateNew(i,8) .EQ. zero) THEN ! Flag for unloading or hardening
 
 					  sgn_tau12 = Sign(one, stressNew(i,4))
 					  diff = (abs(stressNew(i,4)) - abs(stateNew(i,6)))
-     *					     /abs(stateNew(i,6))
+     *					     /abs(stateNew(i,6)) 
 					  WRITE(*,*) 'stateNew(i,8)=', stateNew(i,8)
 					  WRITE(*,*) 'sgn_tau12=', sgn_tau12
 					  WRITE(*,*) 'stateNew(i,6)=', stateNew(i,6)
@@ -262,8 +265,8 @@ C
 					  ! If the stress in the unloading stage is opposite to tau12_0 and
 					  ! abs(tau12) is larger than tau12_0
 					  IF ( sgn_tau12 .NE. sgn_tau12_0 .AND. 
-     *   			     (abs(diff) .LE. tolStress)) THEN	
-	 
+     *   			     (abs(diff) .LE. tolStress)) THEN
+						  
 						  stateNew(i,8) = one 
 						  ! Record the reversed strain where tau12 reaches tau12_0
 						  stateNew(i,7) = stateNew(i,4)
@@ -271,21 +274,21 @@ C
 						  WRITE(*,*) 'stateNew(i,7)=', stateNew(i,7)
 						  
 					  ENDIF
+				  ENDIF
 				  ! Hardening	  
-				  ELSEIF (stateNew(i,8) .EQ. one) THEN ! Enter hardening region
-				  
+			  ELSEIF (stateNew(i,8) .EQ. one) THEN ! Enter hardening region
+			  
 				  stressNew(i,4) = sgn_tau12*(A*(one -exp(-B*abs(stateNew(i,4)
      *		      	- stateNew(i,7))))) + sgn_tau12*abs(stateNew(i,6))
-					  
-					  WRITE(*,*) 'stateNew(i,8)=', stateNew(i,8)
+				  
+				  WRITE(*,*) 'stateNew(i,8)=', stateNew(i,8)
+				  WRITE(*,*) 'stressNew(i,4)=',	stressNew(i,4)
+				  
+				  ! Ensure tau12 not exceed shear strength	
+				  IF (abs(stressNew(i,4)) .GE. 1.d0*A) THEN
+					  stressNew(i,4) = sgn_tau12*A
 					  WRITE(*,*) 'stressNew(i,4)=',	stressNew(i,4)
-					  
-					  ! Ensure tau12 not exceed shear strength	
-					  IF (abs(stressNew(i,4)) .GE. 1.d0*A) THEN
-						  stressNew(i,4) = sgn_tau12*A
-						  WRITE(*,*) 'stressNew(i,4)=',	stressNew(i,4)
-					  ENDIF					  
-				  ENDIF
+				  ENDIF					  
 			  ENDIF
 		  ENDDO
 	  ENDIF

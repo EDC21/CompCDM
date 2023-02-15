@@ -275,7 +275,7 @@ C
 						  
 					  ENDIF
 				  ENDIF
-				  ! Hardening	  
+	  
 			  ELSEIF (stateNew(i,8) .EQ. one) THEN ! Enter hardening region
 			  
 				  stressNew(i,4) = sgn_tau12*(A*(one -exp(-B*abs(stateNew(i,4)
